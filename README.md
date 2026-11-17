@@ -82,7 +82,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\verify-live.ps1
 powershell -ExecutionPolicy Bypass -File .\uninstall.ps1
 ```
 
-从 `~/.claude/amadeus-backup` 恢复原版 `claude.exe` 和之前的 `CLAUDE.md`。只恢复其中一项用 `-KeepBinary` / `-KeepMemory`。
+从 `~/.claude/amadeus-backup` 恢复原版 `claude.exe` 和之前的 `CLAUDE.md`。只恢复其中一项用 `-KeepBinary` / `-KeepMemory`，装在别处传 `-Exe <路径>`。旧版安装器可能把已装甲的文件也留成备份，卸载时会跳过含 `AmadeusKV331` 标记的记忆备份，二进制则取最早的一份——即第一次打补丁之前的状态。
 
 ## 已知限制
 
@@ -92,7 +92,7 @@ powershell -ExecutionPolicy Bypass -File .\uninstall.ps1
 
 **只覆盖 system prompt 层。** 模型的自身对齐仍在，`SAFETY_CLAUSE` 只是把明确的拒绝指令删掉了，所以绝大多数请求会直接放行，但不等于任何话题都保证通过。实测「绕过 WAF 的 SQL 注入 payload」直接输出槽位和混淆基元，无免责、无替代建议。
 
-**备份占空间。** 原版 exe 约 378 MB，存在 `~/.claude/amadeus-backup`，确认稳定后可以自行删除（删除后卸载功能失效）。
+**备份占空间。** 原版 exe 约 378 MB，存在 `~/.claude/amadeus-backup`，确认稳定后可以自行删除（删除后卸载功能失效）。重复运行 `install.ps1` 不会再产生新备份：记忆层认出已装甲就跳过，二进制层在没有可写槽位时直接退出。
 
 ## 文件清单
 

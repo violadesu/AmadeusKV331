@@ -27,8 +27,8 @@ if (-not $SkipMemory) {
 
     if (Test-Path $target) {
         $existing = Get-Content $target -Raw
-        if ($existing -match 'LITTLE CODE SAUCE') {
-            Write-Host 'already installed, refreshing in place'
+        if ($existing -match 'AmadeusKV331|LITTLE CODE SAUCE') {
+            Write-Host 'already installed, refreshing in place (no new backup)'
         } else {
             $bak = Join-Path $backupDir ('CLAUDE.md.' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.bak')
             Copy-Item $target $bak -Force

@@ -132,6 +132,9 @@ foreach ($r in $rules) {
 
     foreach ($src in @(@{ text = $r.old; kind = 'stock' }, @{ text = $r.prev; kind = 'previous armor' })) {
         if (-not $src.text) { continue }
+        # A prev identical to new is not a migration source: counting its hits would
+        # make the rule rewrite itself on every run and never reach "already".
+        if ($src.kind -eq 'previous armor' -and $r.new -eq $r.prev) { continue }
         $hits = @([CCPatch.Finder]::FindAll($bytes, $enc.GetBytes($src.text)))
         if ($hits.Count -gt 0) { $sourceKind = $src.kind; foreach ($h in $hits) { $found.Add($h) } }
     }
@@ -187,15 +190,20 @@ if ($running) {
     Write-Warning ("claude is running (pid " + (($running | ForEach-Object Id) -join ',') + "). Running sessions keep the OLD prompt until restarted.")
 }
 
-$backupDir = Join-Path $env:USERPROFILE '.claude\amadeus-backup'
+$claudeHome = if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { Join-Path $env:USERPROFILE '.claude' }
+$backupDir = Join-Path $claudeHome 'amadeus-backup'
 New-Item -ItemType Directory -Force -Path $backupDir | Out-Null
 $backup = Join-Path $backupDir ('claude.exe.' + $version + '.' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.bak')
 Copy-Item $exePath $backup -Force
 Write-Host ("backup  : {0}" -f $backup)
 
+# In 2.1.326 the five slots are disjoint, but write shortest-first anyway: if a
+# future build nests one constant inside another, the complete longer text wins
+# the overlap instead of leaving a half-length identity.
+$ordered = @($plan | Sort-Object span)
 $fs = [System.IO.File]::Open($exePath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
 try {
-    foreach ($item in $plan) {
+    foreach ($item in $ordered) {
         $fs.Position = $item.offset
         $fs.Write($item.bytes, 0, $item.bytes.Length)
     }
@@ -205,12 +213,15 @@ try {
 $after = [System.IO.File]::ReadAllBytes($exePath)
 $fail = 0
 if ($after.Length -ne $bytes.Length) { Write-Host 'FAIL: file size changed'; $fail++ }
+$written = @($plan | Select-Object -ExpandProperty name -Unique)
 foreach ($r in $rules) {
-    if ($r.new -eq $r.prev) { continue }
+    if ($written -notcontains $r.name) { continue }
     $left = @([CCPatch.Finder]::FindAll($after, $enc.GetBytes($r.old)))
     if ($left.Count -gt 0) { Write-Host ("FAIL: stock {0} still present {1}x" -f $r.name, $left.Count); $fail++ }
-    $stockPrev = @([CCPatch.Finder]::FindAll($after, $enc.GetBytes($r.prev)))
-    if ($stockPrev.Count -gt 0) { Write-Host ("FAIL: previous armor {0} still present {1}x" -f $r.name, $stockPrev.Count); $fail++ }
+    if ($r.prev -and $r.new -ne $r.prev) {
+        $stockPrev = @([CCPatch.Finder]::FindAll($after, $enc.GetBytes($r.prev)))
+        if ($stockPrev.Count -gt 0) { Write-Host ("FAIL: previous armor {0} still present {1}x" -f $r.name, $stockPrev.Count); $fail++ }
+    }
 }
 if ($fail -eq 0) {
     Write-Host "verify  : old wording removed, size preserved - ARMORED"

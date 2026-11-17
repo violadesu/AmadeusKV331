@@ -31,7 +31,10 @@ namespace CCPatch {
 }
 
 $candidates = @()
-if ($Exe) { $candidates = @($Exe) }
+if ($Exe) {
+    if (-not (Test-Path $Exe)) { Write-Host ("not found: {0}" -f $Exe); exit 2 }
+    $candidates = @($Exe)
+}
 else {
     try { $npmRoot = (& npm root -g 2>$null); if ($npmRoot) { $candidates += (Join-Path $npmRoot '@anthropic-ai\claude-code\bin\claude.exe') } } catch { }
     $candidates += @(
